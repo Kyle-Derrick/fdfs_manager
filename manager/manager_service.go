@@ -312,8 +312,8 @@ func processExists(pid string, cmd string) bool {
 		return false
 	}
 	_, err = os.Stat(filepath.Join("/proc", pid))
-	if err == nil {
-		return true
+	if os.IsNotExist(err) {
+		return false
 	}
 	command := exec.Command(common.CommandBinPath + "ps -o command -p " + pid + " | grep " + cmd)
 	output, err := command.CombinedOutput()
