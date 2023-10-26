@@ -311,10 +311,10 @@ func processExists(pid string, cmd string) bool {
 	if err != nil {
 		return false
 	}
-	_, err = os.Stat(filepath.Join("/proc", pid))
-	if os.IsNotExist(err) {
-		return false
-	}
+	//_, err = os.Stat(filepath.Join("/proc", pid))
+	//if os.IsNotExist(err) {
+	//	return false
+	//}
 	command := exec.Command(common.CommandBinPath + "ps -o command -p " + pid + " | grep " + cmd)
 	output, err := command.CombinedOutput()
 	if err != nil || output == nil || len(output) == 0 {
