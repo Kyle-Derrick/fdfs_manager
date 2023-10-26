@@ -315,7 +315,7 @@ func processExists(pid string, cmd string) bool {
 	//if os.IsNotExist(err) {
 	//	return false
 	//}
-	command := exec.Command(common.CommandBinPath + "ps -o command -p " + pid + " | grep " + cmd)
+	command := exec.Command(common.CommandBinPath+"ps", "-h", "-p", pid)
 	output, err := command.CombinedOutput()
 	if err != nil || output == nil || len(output) == 0 {
 		return false
