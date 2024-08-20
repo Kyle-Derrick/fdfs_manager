@@ -1,11 +1,11 @@
 package manager
 
 import (
+	"errors"
 	"fdfs_manager/common"
 	"fmt"
 	"github.com/go-ini/ini"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -39,7 +39,7 @@ func Run(args []string) {
 
 	defer func() {
 		if createdPidFile {
-			os.Remove(common.PidFile)
+			_ = os.Remove(common.PidFile)
 		}
 		if serviceNum == 0 {
 			log.Println("退出程序")
@@ -164,7 +164,7 @@ func start() error {
 	}
 	var conf = FdfsConfig{}
 	log.Println("读取配置文件：", common.ConfigFile)
-	bytes, err := ioutil.ReadFile(common.ConfigFile)
+	bytes, err := os.ReadFile(common.ConfigFile)
 	if err == nil {
 		err = yaml.Unmarshal(bytes, &conf)
 		if err != nil {
@@ -233,21 +233,21 @@ func startService(cmd string, config string, basePath string) (string, error) {
 	command := exec.Command(common.CommandBinPath+cmd, config, "restart")
 	err := command.Run()
 	if err != nil {
-		exec.Command(common.CommandBinPath+cmd, config, "stop").Run()
+		_ = exec.Command(common.CommandBinPath+cmd, config, "stop").Run()
 		return "", fmt.Errorf("启动fdfs 服务失败: %s", config)
 	}
 	pidFile := filepath.Join(basePath, "data/"+cmd+".pid")
 	var pidByte []byte
 	for i := 0; i < 10; i++ {
-		time.Sleep(time.Second)
-		pidByte, err = ioutil.ReadFile(pidFile)
+		pidByte, err = os.ReadFile(pidFile)
 		if err == nil {
 			break
 		}
-		if i == 10 {
-			exec.Command(common.CommandBinPath+cmd, config, "stop").Run()
+		if i == 9 {
+			_ = exec.Command(common.CommandBinPath+cmd, config, "stop").Run()
 			return "", fmt.Errorf("获取已启动的fdfs 服务的pid失败: %s : %s \n%s", config, pidFile, err.Error())
 		}
+		time.Sleep(time.Second)
 	}
 	return string(pidByte), nil
 }
@@ -287,7 +287,7 @@ func createPidFile() error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(common.PidFile, []byte(strconv.Itoa(os.Getpid())), os.FileMode(0644))
+	err = os.WriteFile(common.PidFile, []byte(strconv.Itoa(os.Getpid())), os.FileMode(0644))
 	if err != nil {
 		return err
 	}
@@ -296,7 +296,7 @@ func createPidFile() error {
 }
 
 func checkExists(path string) (string, error) {
-	file, err := ioutil.ReadFile(path)
+	file, err := os.ReadFile(path)
 	if err == nil {
 		pid := strings.TrimSpace(string(file))
 		if processExists(pid, common.AppName) {
@@ -307,14 +307,22 @@ func checkExists(path string) (string, error) {
 }
 
 func processExists(pid string, cmd string) bool {
-	_, err := strconv.Atoi(pid)
+	pidNum, err := strconv.Atoi(pid)
 	if err != nil {
 		return false
 	}
-	//_, err = os.Stat(filepath.Join("/proc", pid))
-	//if os.IsNotExist(err) {
-	//	return false
-	//}
+	proc, err := os.FindProcess(pidNum)
+	if err != nil {
+		return false
+	}
+	err = proc.Signal(syscall.Signal(0))
+	if err != nil {
+		var errno syscall.Errno
+		if !errors.As(err, &errno) || !errors.Is(errno, syscall.EPERM) {
+			return false
+		}
+	}
+
 	command := exec.Command(common.CommandBinPath+"ps", "-h", "-p", pid)
 	output, err := command.CombinedOutput()
 	if err != nil || output == nil || len(output) == 0 {
